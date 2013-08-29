@@ -250,15 +250,24 @@ static char *print_object(cJSON *item,int depth,int fmt);
 static const char *skip(const char *in) {while (in && *in && (unsigned char)*in<=32) in++; return in;}
 
 /* Parse an object - create a new root, and populate. */
-cJSON *cJSON_Parse(const char *value)
+cJSON *cJSON_ParseWithOpts(const char *value,const char **return_parse_end,int require_null_terminated)
 {
+	const char *end=0;
 	cJSON *c=cJSON_New_Item();
 	ep=0;
 	if (!c) return 0;       /* memory fail */
 
-	if (!parse_value(c,skip(value))) {cJSON_Delete(c);return 0;}
+	end=parse_value(c,skip(value));
+	if (!end)	{cJSON_Delete(c);return 0;}	/* parse failure. ep is set. */
+
+	/* if we require null-terminated JSON without appended garbage, skip and then check for a null terminator */
+	if (require_null_terminated) {end=skip(end);if (*end) {cJSON_Delete(c);ep=end;return 0;}}
+	if (return_parse_end) *return_parse_end=end;
 	return c;
 }
+/* Default options for cJSON_Parse */
+cJSON *cJSON_Parse(const char *value) {return cJSON_ParseWithOpts(value,0,0);}
+
 
 /* Parse an object - create a new root, and populate
  *  Also indicates where in the stream the Object ends. */
@@ -351,6 +360,13 @@ static char *print_array(cJSON *item,int depth,int fmt)
 
 	/* How many entries in the array? */
 	while (child) numentries++,child=child->next;
+	/* Explicitly handle numentries==0 */
+	if (!numentries)
+	{
+		out=(char*)cJSON_malloc(3);
+		if (out) strcpy(out,"[]");
+		return out;
+	}
 	/* Allocate an array to hold the values for each */
 	entries=(char**)cJSON_malloc(numentries*sizeof(char*));
 	if (!entries) return 0;
@@ -439,6 +455,16 @@ static char *print_object(cJSON *item,int depth,int fmt)
 	int numentries=0,fail=0;
 	/* Count the number of entries. */
 	while (child) numentries++,child=child->next;
+	/* Explicitly handle empty object case */
+	if (!numentries)
+	{
+		out=(char*)cJSON_malloc(fmt?depth+4:3);
+		if (!out)	return 0;
+		ptr=out;*ptr++='{';
+		if (fmt) {*ptr++='\n';for (i=0;i<depth-1;i++) *ptr++='\t';}
+		*ptr++='}';*ptr++=0;
+		return out;
+	}
 	/* Allocate space for the names and the objects */
 	entries=(char**)cJSON_malloc(numentries*sizeof(char*));
 	if (!entries) return 0;
@@ -531,3 +557,48 @@ cJSON *cJSON_CreateIntArray(int *numbers,int count)				{int i;cJSON *n=0,*p=0,*a
 cJSON *cJSON_CreateFloatArray(float *numbers,int count)			{int i;cJSON *n=0,*p=0,*a=cJSON_CreateArray();for(i=0;a && i<count;i++){n=cJSON_CreateNumber(numbers[i]);if(!i)a->child=n;else suffix_object(p,n);p=n;}return a;}
 cJSON *cJSON_CreateDoubleArray(double *numbers,int count)		{int i;cJSON *n=0,*p=0,*a=cJSON_CreateArray();for(i=0;a && i<count;i++){n=cJSON_CreateNumber(numbers[i]);if(!i)a->child=n;else suffix_object(p,n);p=n;}return a;}
 cJSON *cJSON_CreateStringArray(const char **strings,int count)	{int i;cJSON *n=0,*p=0,*a=cJSON_CreateArray();for(i=0;a && i<count;i++){n=cJSON_CreateString(strings[i]);if(!i)a->child=n;else suffix_object(p,n);p=n;}return a;}
+
+/* Duplication */
+cJSON *cJSON_Duplicate(cJSON *item,int recurse)
+{
+	cJSON *newitem,*cptr,*nptr=0,*newchild;
+	/* Bail on bad ptr */
+	if (!item) return 0;
+	/* Create new item */
+	newitem=cJSON_New_Item();
+	if (!newitem) return 0;
+	/* Copy over all vars */
+	newitem->type=item->type&(~cJSON_IsReference),newitem->valueint=item->valueint,newitem->valuedouble=item->valuedouble;
+	if (item->valuestring)	{newitem->valuestring=cJSON_strdup(item->valuestring);	if (!newitem->valuestring)	{cJSON_Delete(newitem);return 0;}}
+	if (item->string)		{newitem->string=cJSON_strdup(item->string);			if (!newitem->string)		{cJSON_Delete(newitem);return 0;}}
+	/* If non-recursive, then we're done! */
+	if (!recurse) return newitem;
+	/* Walk the ->next chain for the child. */
+	cptr=item->child;
+	while (cptr)
+	{
+		newchild=cJSON_Duplicate(cptr,1);		/* Duplicate (with recurse) each item in the ->next chain */
+		if (!newchild) {cJSON_Delete(newitem);return 0;}
+		if (nptr)	{nptr->next=newchild,newchild->prev=nptr;nptr=newchild;}	/* If newitem->child already set, then crosswire ->prev and ->next and move on */
+		else		{newitem->child=newchild;nptr=newchild;}					/* Set newitem->child and move to it */
+		cptr=cptr->next;
+	}
+	return newitem;
+}
+
+void cJSON_Minify(char *json)
+{
+	char *into=json;
+	while (*json)
+	{
+		if (*json==' ') json++;
+		else if (*json=='\t') json++;	// Whitespace characters.
+		else if (*json=='\r') json++;
+		else if (*json=='\n') json++;
+		else if (*json=='/' && json[1]=='/')  while (*json && *json!='\n') json++;	// double-slash comments, to end of line.
+		else if (*json=='/' && json[1]=='*') {while (*json && !(*json=='*' && json[1]=='/')) json++;json+=2;}	// multiline comments.
+		else if (*json=='\"'){*into++=*json++;while (*json && *json!='\"'){if (*json=='\\') *into++=*json++;*into++=*json++;}*into++=*json++;} // string literals, which are \" sensitive.
+		else *into++=*json++;			// All other characters.
+	}
+	*into=0;	// and null-terminate.
+}

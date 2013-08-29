@@ -31,56 +31,64 @@
 #define JRPC_INVALID_PARAMS -32603
 #define JRPC_INTERNAL_ERROR -32693
 
-typedef struct {
+typedef struct jrpc_Context {
 	void *data;
 	int error_code;
 	char * error_message;
-} jrpc_context;
+} jrpc_Context_t;
 
-typedef cJSON* (*jrpc_function)(jrpc_context *context, cJSON *params, cJSON* id);
+typedef cJSON* (*jrpc_Function)(jrpc_Context_t *context, cJSON *params, cJSON* id);
 
-struct jrpc_procedure {
+typedef struct jrpc_Procedure {
 	char * name;
-	jrpc_function function;
+	jrpc_Function function;
 	void *data;
-};
+} jrpc_Procedure_t;
 
-struct jrpc_server {
+typedef struct jrpc_Server {
 	int port_number;
 	struct ev_loop *loop;
 	ev_io listen_watcher;
 	int procedure_count;
-	struct jrpc_procedure *procedures;
+	jrpc_Procedure_t *procedures;
 	int debug_level;
-};
+} jrpc_Server_t;
 
-struct jrpc_connection {
+typedef struct jrpc_Connection {
 	struct ev_io io;
 	int fd;
 	int pos;
 	unsigned int buffer_size;
 	char * buffer;
 	int debug_level;
-};
+} jrpc_Connection_t;
 
-int jrpc_server_init(struct jrpc_server *server, int port_number);
+/**
+ * @defgroup ServerMgmt Server Management
+ * @{
+ */
 
-int jrpc_server_init_with_ev_loop(struct jrpc_server *server,
-        int port_number, struct ev_loop *loop);
+int jrpc_ServerInit(jrpc_Server_t *server, int port_number);
 
-static int __jrpc_server_start(struct jrpc_server *server);
+int jrpc_ServerInitWithEvLoop(jrpc_Server_t *server, int port_number, struct ev_loop *loop);
 
-void jrpc_server_run(struct jrpc_server *server);
+void jrpc_ServerRun(jrpc_Server_t *server);
 
-int jrpc_server_stop(struct jrpc_server *server);
+int jrpc_ServerStop(jrpc_Server_t *server);
 
-void jrpc_server_destroy(struct jrpc_server *server);
+void jrpc_ServerDestroy(jrpc_Server_t *server);
 
-static void jrpc_procedure_destroy(struct jrpc_procedure *procedure);
+/* @} */
 
-int jrpc_register_procedure(struct jrpc_server *server,
-		jrpc_function function_pointer, char *name, void *data);
+/**
+ * @defgroup ProcedureMgmt Procedure Management
+ * @{
+ */
 
-int jrpc_deregister_procedure(struct jrpc_server *server, char *name);
+int jrpc_ProcedureRegister(jrpc_Server_t *server, jrpc_Function function_pointer, char *name, void *data);
+
+int jrpc_ProcedureUnregister(jrpc_Server_t *server, char *name);
+
+/* @} */
 
 #endif

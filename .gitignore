@@ -55,3 +55,7 @@ stamp-h1
 *.libs
 example/server
 
+# Eclipse
+.project
+.cproject
+.autotools
