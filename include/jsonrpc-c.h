@@ -1,8 +1,7 @@
 /*
- * jsonrpc-c.h
+ * @file jsonrpc-c-priv.h
  *
- *  Created on: Oct 11, 2012
- *      Author: hmng
+ * JSON RPC Public Declarations
  */
 
 #ifndef JSONRCPC_H_
@@ -31,52 +30,33 @@
 #define JRPC_INVALID_PARAMS -32603
 #define JRPC_INTERNAL_ERROR -32693
 
-typedef struct jrpc_Context {
-	void *data;
-	int error_code;
-	char * error_message;
-} jrpc_Context_t;
 
-typedef cJSON* (*jrpc_Function)(jrpc_Context_t *context, cJSON *params, cJSON* id);
+typedef struct jrpc_Server * jrpc_ServerRef_t;
+typedef struct jrpc_Connection * jrpc_ConnectionRef_t;
 
-typedef struct jrpc_Procedure {
-	char * name;
-	jrpc_Function function;
-	void *data;
-} jrpc_Procedure_t;
+typedef struct jrpc_ProcedureContext {
+    jrpc_ConnectionRef_t connection;
+    void * data;
+    int error_code;
+    char * error_message;
+} jrpc_ProcedureContext_t;
 
-typedef struct jrpc_Server {
-	int port_number;
-	struct ev_loop *loop;
-	ev_io listen_watcher;
-	int procedure_count;
-	jrpc_Procedure_t *procedures;
-	int debug_level;
-} jrpc_Server_t;
-
-typedef struct jrpc_Connection {
-	struct ev_io io;
-	int fd;
-	int pos;
-	unsigned int buffer_size;
-	char * buffer;
-	int debug_level;
-} jrpc_Connection_t;
+typedef cJSON* (*jrpc_ProcedureHandler_t)(jrpc_ProcedureContext_t * context, cJSON * params, cJSON * id);
 
 /**
- * @defgroup ServerMgmt Server Management
+ * @defgroup ServerMgmt RPC Server Management
  * @{
  */
 
-int jrpc_ServerInit(jrpc_Server_t *server, int port_number);
+int jrpc_ServerInit(jrpc_ServerRef_t * server, int port_number);
 
-int jrpc_ServerInitWithEvLoop(jrpc_Server_t *server, int port_number, struct ev_loop *loop);
+int jrpc_ServerInitWithEvLoop(jrpc_ServerRef_t * server, int port_number, struct ev_loop * loop);
 
-void jrpc_ServerRun(jrpc_Server_t *server);
+void jrpc_ServerRun(jrpc_ServerRef_t server);
 
-int jrpc_ServerStop(jrpc_Server_t *server);
+int jrpc_ServerStop(jrpc_ServerRef_t server);
 
-void jrpc_ServerDestroy(jrpc_Server_t *server);
+void jrpc_ServerDestroy(jrpc_ServerRef_t * server);
 
 /* @} */
 
@@ -85,10 +65,35 @@ void jrpc_ServerDestroy(jrpc_Server_t *server);
  * @{
  */
 
-int jrpc_ProcedureRegister(jrpc_Server_t *server, jrpc_Function function_pointer, char *name, void *data);
+int jrpc_ProcedureRegister(jrpc_ServerRef_t server, jrpc_ProcedureHandler_t function_pointer, const char * name, void * data);
 
-int jrpc_ProcedureUnregister(jrpc_Server_t *server, char *name);
+int jrpc_ProcedureUnregister(jrpc_ServerRef_t server, const char * name);
 
 /* @} */
+
+/**
+ * @defgroup ClientMgmt RPC Client Management
+ * @{
+ */
+
+typedef struct jrpc_Client {
+    jrpc_ConnectionRef_t connection;
+} jrpc_Client_t;
+
+typedef struct jrpc_Client * jrpc_ClientRef_t;
+
+//int jrpc_ClientStart(jrpc_ClientRef_t client, char * host, int port_number);
+
+/**
+ * Reuse connection from server and declares it as a client.
+ */
+void jrpc_ClientStartOnConnection(jrpc_ClientRef_t * client, jrpc_ConnectionRef_t connection);
+
+int jrpc_ClientSendNotification(jrpc_ClientRef_t client, const char * method, cJSON * params);
+
+void jrpc_ClientDestroy(jrpc_ClientRef_t * client);
+
+/* @} */
+
 
 #endif
