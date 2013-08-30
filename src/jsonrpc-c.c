@@ -111,6 +111,8 @@ static int invoke_procedure(jrpc_Server_t * server, jrpc_Connection_t * conn, ch
 	int procedure_found = 0;
 	jrpc_ProcedureContext_t ctx = {0};
 
+    ctx.connection = conn;
+
 	/* Look for procedure */
 	int i = server->procedure_count;
 	while (i--) {
@@ -220,7 +222,7 @@ static void connection_cb(struct ev_loop *loop, ev_io *w, int revents) {
 			if (root->type == cJSON_Object) {
 				eval_request(server, conn, root);
 			}
-			//shift processed request, discarding it
+			// Shift processed request, discarding it
 			memmove(conn->buffer, end_ptr, strlen(end_ptr) + 2);
 
 			conn->pos = strlen(end_ptr);

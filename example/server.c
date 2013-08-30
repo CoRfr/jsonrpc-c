@@ -42,7 +42,11 @@ void * notify_me_thread(void * ctx) {
     notify_me_ctx_t * notify_me_ctx = (notify_me_ctx_t *)ctx;
     jrpc_ClientRef_t client;
 
+    printf("Notify thread");
+
     sleep(notify_me_ctx->delay);
+
+    printf("Notifying ...");
 
     jrpc_ClientStartOnConnection(&client, notify_me_ctx->connection);
     jrpc_ClientSendNotification(client, "notify", cJSON_CreateString("Notified !"));
@@ -59,13 +63,15 @@ cJSON * notify_me(jrpc_ProcedureContext_t * ctx, cJSON * params, cJSON * id) {
     if(notify_me_ctx == NULL)
         return cJSON_CreateFalse();
 
-    notify_me_ctx->delay = 2000;
+    notify_me_ctx->delay = 2;
     notify_me_ctx->connection = ctx->connection;
 
-    cJSON * delayObj = cJSON_GetObjectItem(params, "delay");
-    if(delayObj != NULL) {
-        if(delayObj->type == cJSON_Number) {
-            notify_me_ctx->delay = delayObj->valueint;
+    if(params != NULL) {
+        cJSON * delayObj = cJSON_GetObjectItem(params, "delay");
+        if(delayObj != NULL) {
+            if(delayObj->type == cJSON_Number) {
+                notify_me_ctx->delay = delayObj->valueint;
+            }
         }
     }
 
