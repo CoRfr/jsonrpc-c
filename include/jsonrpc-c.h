@@ -4,7 +4,7 @@
  * JSON RPC Public Declarations
  */
 
-#ifndef JSONRCPC_H_
+#ifndef JSONRPCC_H_
 #define JSONRPCC_H_
 
 #include "cJSON.h"
