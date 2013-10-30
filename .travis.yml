@@ -2,4 +2,10 @@ language: c
 compiler:
     - gcc
     - clang
-script: autoreconf --install && ./configure && make
+
+before_install:
+    - sudo apt-get install libev-dev
+
+script:
+    - autoreconf --install
+    - ./configure && make
