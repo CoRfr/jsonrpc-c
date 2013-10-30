@@ -1,4 +1,4 @@
-jsonrpc-c
+jsonrpc-c [![Build Status](https://api.travis-ci.org/CoRfr/jsonrpc-c.png?branch=master)](https://travis-ci.org/CoRfr/jsonrpc-c)
 =========
 
 JSON-RPC in C (server only for now)
