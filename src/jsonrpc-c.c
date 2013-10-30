@@ -402,10 +402,12 @@ int jrpc_ServerStop(jrpc_Server_t * server) {
 void jrpc_ServerDestroy(jrpc_Server_t ** server) {
 	/* Don't destroy server */
 	int i;
+	jrpc_Procedure_t *procedure;
 
 	/* Destroy all procedures */
-	for (i = 0; i < (*server)->procedure_count; i++){
-		jrpc_ProcedureDestroy( &((*server)->procedures[i]) );
+	for (i = 0; i < (*server)->procedure_count; i++) {
+		procedure = (*server)->procedures + i;
+		jrpc_ProcedureDestroy(procedure);
 	}
 	free((*server)->procedures);
 
@@ -413,29 +415,32 @@ void jrpc_ServerDestroy(jrpc_Server_t ** server) {
 }
 
 static void jrpc_ProcedureDestroy(jrpc_Procedure_t *procedure) {
+
 	if (procedure->name){
 		free(procedure->name);
 		procedure->name = NULL;
 	}
-	if (procedure->data){
-		free(procedure->data);
-		procedure->data = NULL;
-	}
+
+	procedure->data = NULL;
 }
 
 int jrpc_ProcedureRegister(jrpc_Server_t * server, jrpc_ProcedureHandler_t function_pointer, const char * name, void * data) {
     jrpc_Procedure_t * procedure;
-	int i = server->procedure_count++;
+	int i = server->procedure_count;
 
 	if (!server->procedures)
 		server->procedures = malloc( sizeof(jrpc_Procedure_t) );
 	else {
 		jrpc_Procedure_t * ptr = realloc(server->procedures,
-				sizeof(jrpc_Procedure_t) * server->procedure_count);
-		if (!ptr)
+				sizeof(jrpc_Procedure_t) * (server->procedure_count+1) );
+		if (!ptr) {
+			perror("realloc");
 			return -1;
+		}
 		server->procedures = ptr;
 	}
+
+	server->procedure_count++;
 
 	procedure = &(server->procedures[i]);
 
@@ -451,16 +456,17 @@ int jrpc_ProcedureRegister(jrpc_Server_t * server, jrpc_ProcedureHandler_t funct
 }
 
 int jrpc_ProcedureUnregister(jrpc_Server_t * server, const char * name) {
-
-	int i;
 	int found = 0;
 
 	if (server->procedures) {
+		int i;
+
 	    /* Search the procedure to unregister */
 		for (i = 0; i < server->procedure_count; i++) {
-			if (found)
-				server->procedures[i-1] = server->procedures[i];
-			else if( (server->procedures[i].function != NULL)
+			if (found) {
+				/* Shift */
+				memcpy( &(server->procedures[i-1]), &(server->procedures[i]), sizeof(jrpc_Procedure_t) );
+			} else if( (server->procedures[i].function != NULL)
 			        && (strcmp(name, server->procedures[i].name) == 0) ) {
 				found = 1;
 				jrpc_ProcedureDestroy( &(server->procedures[i]) );
@@ -470,7 +476,8 @@ int jrpc_ProcedureUnregister(jrpc_Server_t * server, const char * name) {
 
 		if (found) {
 			server->procedure_count--;
-			if (server->procedure_count) {
+
+			if (server->procedure_count != 0) {
 				jrpc_Procedure_t * ptr = realloc(server->procedures,
 					sizeof(jrpc_Procedure_t) * server->procedure_count);
 				if (!ptr) {
@@ -479,6 +486,7 @@ int jrpc_ProcedureUnregister(jrpc_Server_t * server, const char * name) {
 				}
 				server->procedures = ptr;
 			} else {
+				free(server->procedures);
 				server->procedures = NULL;
 			}
 		}
